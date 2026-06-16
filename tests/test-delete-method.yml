@@ -1,0 +1,28 @@
+name: Test DELETE method
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Test DELETE method invocation
+        id: action
+        uses: .
+        with:
+          api_key: "dummy-api-key-for-testing"
+          method: "DELETE"
+          bin_id: "000000000000000000000000"
+        continue-on-error: true
+      - name: Assert action was invoked (DELETE method)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # The action will fail because the API key is invalid,
+          # but we verify it was invoked and ran (not skipped)
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action step was skipped, expected it to run"
+            exit 1
+          fi
+          echo "PASS: action was invoked with DELETE method"
