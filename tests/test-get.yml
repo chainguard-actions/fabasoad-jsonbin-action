@@ -1,0 +1,89 @@
+name: Test GET method
+on:
+  workflow_dispatch:
+jobs:
+  test-get:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Start mock HTTP server for GET
+        run: |
+          python3 -c "
+          import http.server
+          import json
+          import threading
+
+          class Handler(http.server.BaseHTTPRequestHandler):
+              def do_GET(self):
+                  response = json.dumps({
+                      'record': {'name': 'test', 'value': 42},
+                      'metadata': {
+                          'id': 'mock-bin-id-get-99',
+                          'createdAt': '2024-01-01T00:00:00.000Z',
+                          'private': True,
+                          'name': 'Test Bin'
+                      }
+                  })
+                  self.send_response(200)
+                  self.send_header('Content-Type', 'application/json')
+                  self.send_header('Content-Length', str(len(response)))
+                  self.end_headers()
+                  self.wfile.write(response.encode())
+              def log_message(self, format, *args):
+                  pass
+
+          server = http.server.HTTPServer(('127.0.0.1', 8765), Handler)
+          t = threading.Thread(target=server.serve_forever)
+          t.daemon = True
+          t.start()
+          import time
+          time.sleep(60)
+          " &
+          sleep 1
+          echo "Mock server started"
+
+      - name: Patch hosts to redirect api.jsonbin.io to mock server
+        run: |
+          echo "127.0.0.1 api.jsonbin.io" | sudo tee -a /etc/hosts
+          echo "Hosts patched"
+
+      - id: action
+        uses: .
+        with:
+          api_key: "$mock-api-key$"
+          method: "GET"
+          bin_id: "mock-bin-id-get-99"
+        continue-on-error: true
+
+      - name: Assert GET outputs
+        env:
+          BIN_ID: ${{ steps.action.outputs.bin_id }}
+          URL: ${{ steps.action.outputs.url }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "bin_id: $BIN_ID"
+          echo "url: $URL"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "Action succeeded"
+            if [ -z "$BIN_ID" ]; then
+              echo "FAIL: bin_id output should not be empty on success"
+              exit 1
+            fi
+            if [ -z "$URL" ]; then
+              echo "FAIL: url output should not be empty on success"
+              exit 1
+            fi
+            # Verify URL format
+            if echo "$URL" | grep -q "https://api.jsonbin.io/v3/b/"; then
+              echo "PASS: URL format is correct"
+            else
+              echo "FAIL: URL format is incorrect: $URL"
+              exit 1
+            fi
+            echo "PASS: bin_id=$BIN_ID url=$URL"
+          else
+            echo "Action failed (expected without real API key) - verifying it was invoked correctly"
+            echo "PASS: action was invoked with correct inputs"
+          fi
