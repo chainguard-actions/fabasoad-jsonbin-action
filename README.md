@@ -1,17 +1,71 @@
-# fabasoad/jsonbin-action
+# JSONbin
 
-This action allows to generate custom HTTP responses using JSONbin service.
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/badges/StandWithUkraine.svg)](https://stand-with-ukraine.pp.ua)
+![Releases](https://img.shields.io/github/v/release/fabasoad/jsonbin-action?include_prereleases)
+![functional-tests](https://github.com/fabasoad/jsonbin-action/actions/workflows/functional-tests.yml/badge.svg)
+![security](https://github.com/fabasoad/jsonbin-action/actions/workflows/security.yml/badge.svg)
+![linting](https://github.com/fabasoad/jsonbin-action/actions/workflows/linting.yml/badge.svg)
 
-Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at [https://github.com/fabasoad/jsonbin-action](https://github.com/fabasoad/jsonbin-action).
+This action allows to generate custom HTTP responses using [JSONbin.io](https://jsonbin.io).
 
-## Versions
+## Prerequisites
 
-| Version | Tag | Upstream commit |
-|---------|-----|-----------------|
-| v2.0.3 | [`v2.0.3`](https://github.com/chainguard-actions/fabasoad-jsonbin-action/tree/v2.0.3) | [`ce923a8`](https://github.com/fabasoad/jsonbin-action/commit/ce923a87d974a2434c38297c5bb3eb2e8236cf0c) |
-| v2.0.4 | [`v2.0.4`](https://github.com/chainguard-actions/fabasoad-jsonbin-action/tree/v2.0.4) | [`7585e70`](https://github.com/fabasoad/jsonbin-action/commit/7585e7051ce52bcb2c39fe3cde46e5b7da9ca973) |
-| v2.0.6 | [`v2.0.6`](https://github.com/chainguard-actions/fabasoad-jsonbin-action/tree/v2.0.6) | [`516338b`](https://github.com/fabasoad/jsonbin-action/commit/516338b07f6548c3bfeb00f4454c639c6497f938) |
-| v3.0.0 | [`v3.0.0`](https://github.com/chainguard-actions/fabasoad-jsonbin-action/tree/v3.0.0) | [`22e635d`](https://github.com/fabasoad/jsonbin-action/commit/22e635dcd9bfb76a6dbd60fd35d11cfbd0ba194f) |
+Sign up to [JSONbin](https://jsonbin.io) official web page. Then go to [API Keys](https://jsonbin.io/api-keys)
+and copy api key to use it in action.
+
+## Inputs
+
+<!-- prettier-ignore-start -->
+| Name    | Required | Description                                                           | Default | Possible values                     |
+|---------|----------|-----------------------------------------------------------------------|---------|-------------------------------------|
+| api_key | Yes      | JSONbin API Key                                                       |         | _&lt;string&gt;_                    |
+| body    | No       | Body to send in JSON format. In case you want to CREATE or UPDATE bin | `""`    | _&lt;json&gt;_                      |
+| method  | No       | Type of response that you want to send                                | `GET`   | `GET`, `CREATE`, `UPDATE`, `DELETE` |
+| bin_id  | No       | In case you want to GET, UPDATE or DELETE bin                         | `""`    | _&lt;string&gt;_                    |
+<!-- prettier-ignore-end -->
+
+## Outputs
+
+<!-- prettier-ignore-start -->
+| Name   | Required | Description                                           |
+|--------|----------|-------------------------------------------------------|
+| bin_id | Yes      | ID of a bin that has been created, updated or deleted |
+| url    | Yes      | Access URL to a bin                                   |
+<!-- prettier-ignore-end -->
+
+## Example usage
+
+### Workflow configuration
+
+```yaml
+name: JSONbin
+
+on: push
+
+jobs:
+  jsonbin:
+    name: Test JSONbin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@main
+      - uses: fabasoad/jsonbin-action@main
+        id: jsonbin
+        with:
+          body: '{"workflow": "${{ github.workflow }}", "author": "${{ github.actor }}", "number": "${{ github.run_number }}"}'
+          method: "CREATE"
+          api_key: ${{ secrets.API_KEY }}
+      - name: Check bin_id
+        run: |
+          echo "Bin ID = ${{ steps.jsonbin.outputs.bin_id }}"
+          echo "URL = ${{ steps.jsonbin.outputs.url }}"
+```
+
+### Result
+
+```text
+Bin ID = 5e93fsb6b08d064dc025e226
+URL = https://api.jsonbin.io/b/5e93fsb6b08d064dc025e226
+```
 
 ## Privacy
 

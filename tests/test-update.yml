@@ -1,0 +1,26 @@
+name: Test UPDATE method
+on:
+  workflow_dispatch:
+jobs:
+  test-update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        with:
+          api_key: "fake-api-key-for-testing"
+          method: "UPDATE"
+          bin_id: "fake-bin-id-12345"
+          body: '{"name": "updated"}'
+        continue-on-error: true
+      - name: Assert action was invoked
+        run: |
+          echo "Action outcome: ${{ steps.action.outcome }}"
+          # The action will fail because the API key is fake and JSONbin will reject it
+          # We verify the action was at least invoked (outcome is either success or failure, not skipped)
+          if [ "${{ steps.action.outcome }}" = "skipped" ]; then
+            echo "FAIL: action was skipped, expected it to run"
+            exit 1
+          fi
+          echo "PASS: action was invoked (outcome: ${{ steps.action.outcome }})"
