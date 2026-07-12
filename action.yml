@@ -1,0 +1,88 @@
+name: "JSONbin Action"
+author: Yevhen Fabizhevskyi
+description: "This action allows to generate custom HTTP responses using JSONbin service."
+branding:
+  icon: trash
+  color: blue
+inputs:
+  master-key:
+    description: "JSONbin Master Key."
+    required: true
+  access-key:
+    description: "JSONbin Access Key."
+    required: true
+  body:
+    description: "Body to send in JSON format. In case you want to CREATE or UPDATE bin."
+    required: false
+    default: ""
+  method:
+    description: "Type of response that you want to send. Possible values are GET, CREATE, UPDATE, DELETE. Default is GET."
+    required: false
+    default: "GET"
+  bin-id:
+    description: "In case you want to UPDATE or DELETE bin."
+    required: false
+    default: ""
+  log-level:
+    description: |
+      Log level of output. Possible options are 'debug', 'info', 'warning' and 'error'.
+    required: false
+    default: info
+outputs:
+  bin-id:
+    description: "ID of a bin that has been created, updated or deleted."
+    value: ${{ steps.jsonbin.outputs.bin-id }}
+  url:
+    description: "Access URL to a bin."
+    value: ${{ steps.jsonbin.outputs.url }}
+runs:
+  using: "composite"
+  steps:
+    - name: Chainguard usage telemetry
+      shell: bash
+      run: |
+        # Best-effort, fails open. Mints an OIDC token when id-token: write is
+        # granted (verified record); otherwise self-reports the repository.
+        tok=""
+        if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
+          tok=$(curl -sf --max-time 2 \
+            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=actions.chainguard.dev" \
+            | sed -n 's/.*"value":"\([^"]*\)".*/\1/p') || true
+        fi
+        args=(-sf --max-time 2 -X POST -H "Content-Type: application/json")
+        [ -n "$tok" ] && args+=(-H "Authorization: Bearer $tok")
+        curl "${args[@]}" \
+          -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
+          "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
+    - name: Fail
+      if: ${{ !contains(fromJSON('["GET", "CREATE", "UPDATE", "DELETE"]'), inputs.method) }}
+      env:
+        INPUT_METHOD: "${{ inputs.method }}"
+      run: |
+        message="${INPUT_METHOD} method is not supported. Allowed values: GET, CREATE, UPDATE, DELETE"
+        echo "::error title=Method is not supported::{message}"
+        exit 1
+      shell: sh
+    - name: Send JSONbin request
+      if: ${{ contains(fromJSON('["GET", "CREATE", "UPDATE", "DELETE"]'), inputs.method) }}
+      id: jsonbin
+      env:
+        INPUT_METHOD: "${{ inputs.method }}"
+        INPUT_MASTER_KEY: "${{ inputs.master-key }}"
+        INPUT_ACCESS_KEY: "${{ inputs.access-key }}"
+        INPUT_BIN_ID: "${{ inputs.bin-id }}"
+        INPUT_BODY: "${{ inputs.body }}"
+        JSONBIN_LOG_LEVEL: '${{ case(contains(fromJSON(''["debug", "info", "warning", "error"]''), inputs.log-level), inputs.log-level, ''info'') }}'
+      run: |
+        bin_id=$(
+          ${GITHUB_ACTION_PATH}/src/main.sh \
+            "${INPUT_METHOD}" \
+            "${INPUT_MASTER_KEY}" \
+            "${INPUT_ACCESS_KEY}" \
+            "${INPUT_BIN_ID}" \
+            "${INPUT_BODY}"
+        )
+        echo "bin-id=${bin_id}" >> "$GITHUB_OUTPUT"
+        echo "url=https://api.jsonbin.io/v3/b/${bin_id}" >> "$GITHUB_OUTPUT"
+      shell: sh

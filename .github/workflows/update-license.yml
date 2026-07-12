@@ -1,0 +1,13 @@
+---
+name: License
+
+on: # yamllint disable-line rule:truthy
+  schedule:
+    - cron: "0 5 1 1 *"
+
+jobs:
+  maintenance:
+    name: Maintenance
+    uses: fabasoad/reusable-workflows/.github/workflows/wf-update-license.yml@e4ff663d3bc9ff9d225d2e967a0f94aad342d218 # main
+    permissions:
+      contents: write
