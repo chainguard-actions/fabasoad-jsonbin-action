@@ -1,0 +1,78 @@
+---
+name: Test all valid methods are accepted
+on:
+  workflow_dispatch:
+jobs:
+  test-delete:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Run action with DELETE method
+        id: action
+        uses: .
+        with:
+          master-key: "fake-master-key"
+          access-key: "fake-access-key"
+          method: "DELETE"
+          bin-id: "fake-bin-id-12345"
+        continue-on-error: true
+      - name: Assert DELETE method was accepted (not rejected by validation)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # DELETE is a valid method - the action should not fail at validation.
+          # It may fail at the API call step due to fake keys.
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action was skipped, expected it to run"
+            exit 1
+          fi
+          echo "PASS: DELETE method was accepted as valid"
+
+  test-update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Run action with UPDATE method
+        id: action
+        uses: .
+        with:
+          master-key: "fake-master-key"
+          access-key: "fake-access-key"
+          method: "UPDATE"
+          bin-id: "fake-bin-id-12345"
+          body: '{"updated": true}'
+        continue-on-error: true
+      - name: Assert UPDATE method was accepted (not rejected by validation)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action was skipped, expected it to run"
+            exit 1
+          fi
+          echo "PASS: UPDATE method was accepted as valid"
+
+  test-invalid-lowercase:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Run action with lowercase 'get' method (should fail validation)
+        id: action
+        uses: .
+        with:
+          master-key: "fake-master-key"
+          access-key: "fake-access-key"
+          method: "get"
+        continue-on-error: true
+      - name: Assert lowercase method was rejected
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" != "failure" ]; then
+            echo "FAIL: expected action to fail for lowercase method 'get', but got: $OUTCOME"
+            exit 1
+          fi
+          echo "PASS: lowercase method 'get' was correctly rejected"

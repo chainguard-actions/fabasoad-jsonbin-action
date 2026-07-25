@@ -32,18 +32,18 @@ jobs:
       - name: Prepare GET headers
         id: http-req
         env:
-          MK: ${{ secrets.JSONBIN_MASTER_KEY }}
-          AK: ${{ secrets.JSONBIN_ACCESS_KEY }}
+          JSONBIN_MASTER_KEY: ${{ secrets.JSONBIN_MASTER_KEY }}
+          JSONBIN_ACCESS_KEY: ${{ secrets.JSONBIN_ACCESS_KEY }}
         run: |
           headers=$(
             jq -cn \
-              --arg mk "$MK" \
-              --arg ak "$AK" \
+              --arg mk "$JSONBIN_MASTER_KEY" \
+              --arg ak "$JSONBIN_ACCESS_KEY" \
               '{"X-Master-Key": $mk, "X-Access-Key": $ak, "X-Bin-Meta": "true", "Accept": "application/json"}'
           )
           echo "headers=${headers}" >> "$GITHUB_OUTPUT"
       - name: Checkout ${{ github.repository }}
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: "false"
       - name: Create bin
