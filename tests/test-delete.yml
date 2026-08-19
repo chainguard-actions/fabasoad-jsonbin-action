@@ -1,24 +1,112 @@
-name: Test DELETE method
+---
+name: Test DELETE JSONbin
 on:
   workflow_dispatch:
 jobs:
-  test:
+  test-delete:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Test DELETE method fails with invalid API key
+
+      - name: Set up mock JSONbin HTTPS server
+        run: |
+          # Generate self-signed cert with SAN (required by modern Node.js)
+          cat > /tmp/openssl-san.cnf << 'EOF'
+          [req]
+          distinguished_name = req_distinguished_name
+          x509_extensions = v3_req
+          prompt = no
+          [req_distinguished_name]
+          CN = api.jsonbin.io
+          [v3_req]
+          subjectAltName = DNS:api.jsonbin.io
+          EOF
+
+          openssl req -x509 -newkey rsa:2048 \
+            -keyout /tmp/mock-key.pem \
+            -out /tmp/mock-cert.pem \
+            -days 1 -nodes \
+            -config /tmp/openssl-san.cnf 2>/dev/null
+
+          # Add cert to system trust store
+          cp /tmp/mock-cert.pem /usr/local/share/ca-certificates/mock-jsonbin.crt
+          update-ca-certificates 2>/dev/null || true
+
+          # Set NODE_EXTRA_CA_CERTS so Node.js trusts our cert
+          echo "NODE_EXTRA_CA_CERTS=/tmp/mock-cert.pem" >> "$GITHUB_ENV"
+
+          # Start mock server on port 443
+          python3 "$GITHUB_WORKSPACE/tests/fixtures/mock-jsonbin-server.py" 443 ssl &
+          echo $! > /tmp/mock-server.pid
+
+          # Wait for server to be ready
+          for i in $(seq 1 30); do
+            if curl -sk --cacert /tmp/mock-cert.pem https://127.0.0.1/v3/b/test -o /dev/null 2>/dev/null; then
+              echo "Mock server is up (attempt $i)"
+              break
+            fi
+            echo "Waiting for mock server... attempt $i"
+            sleep 1
+          done
+
+          # Redirect api.jsonbin.io to localhost
+          echo "127.0.0.1 api.jsonbin.io" >> /etc/hosts
+          echo "Mock server ready"
+
+      - name: Create a JSONbin to delete
+        id: create
+        uses: .
+        with:
+          api_key: mock-api-key
+          method: CREATE
+          body: '{"test": "to-be-deleted", "scenario": "delete"}'
+
+      - name: Capture created bin_id
+        id: capture
+        env:
+          BIN_ID: ${{ steps.create.outputs.bin_id }}
+        run: |
+          echo "Created bin_id: $BIN_ID"
+          if [ -z "$BIN_ID" ]; then
+            echo "FAIL: CREATE step did not produce a bin_id"
+            exit 1
+          fi
+          echo "bin_id=$BIN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: DELETE the JSONbin
         id: action
         uses: .
         with:
-          api_key: "fake-api-key-for-testing"
-          method: "DELETE"
-          bin_id: "000000000000000000000000"
-        continue-on-error: true
-      - name: Assert action failed with invalid API key
+          api_key: mock-api-key
+          method: DELETE
+          bin_id: ${{ steps.capture.outputs.bin_id }}
+
+      - name: Assert DELETE bin_id matches created bin_id
+        env:
+          CREATED_BIN_ID: ${{ steps.capture.outputs.bin_id }}
+          DELETED_BIN_ID: ${{ steps.action.outputs.bin_id }}
         run: |
-          echo "outcome: ${{ steps.action.outcome }}"
-          if [ "${{ steps.action.outcome }}" != "failure" ]; then
-            echo "FAIL: expected action to fail with invalid API key, but got: ${{ steps.action.outcome }}"
+          echo "created bin_id: $CREATED_BIN_ID"
+          echo "deleted bin_id: $DELETED_BIN_ID"
+          if [ -z "$DELETED_BIN_ID" ]; then
+            echo "FAIL: DELETE did not return a bin_id"
             exit 1
           fi
-          echo "PASS: action correctly failed with invalid API key"
+          if [ "$DELETED_BIN_ID" != "$CREATED_BIN_ID" ]; then
+            echo "FAIL: DELETE bin_id '$DELETED_BIN_ID' does not match created bin_id '$CREATED_BIN_ID'"
+            exit 1
+          fi
+          echo "PASS: DELETE returned the correct bin_id"
+
+      - name: Assert DELETE url is well-formed
+        env:
+          URL: ${{ steps.action.outputs.url }}
+          BIN_ID: ${{ steps.action.outputs.bin_id }}
+        run: |
+          echo "url: $URL"
+          EXPECTED_URL="https://api.jsonbin.io/v3/b/${BIN_ID}"
+          if [ "$URL" != "$EXPECTED_URL" ]; then
+            echo "FAIL: url '$URL' does not match expected '$EXPECTED_URL'"
+            exit 1
+          fi
+          echo "PASS: url is well-formed"
