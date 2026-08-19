@@ -1,4 +1,5 @@
-name: Test CREATE method
+---
+name: Test CREATE JSONbin
 on:
   workflow_dispatch:
 jobs:
@@ -6,48 +7,75 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Start mock HTTP server
+
+      - name: Skip if no API key
+        id: check-key
+        env:
+          API_KEY: ${{ secrets.JSONBIN_API_KEY }}
         run: |
-          # Install netcat for a simple mock server
-          # Use Python to serve a mock JSONbin response
-          python3 -c "
-          import http.server, json, threading
+          if [ -z "$API_KEY" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "WARNING: JSONBIN_API_KEY secret not set, skipping live API test"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
 
-          class Handler(http.server.BaseHTTPRequestHandler):
-              def do_POST(self):
-                  self.send_response(200)
-                  self.send_header('Content-Type', 'application/json')
-                  self.end_headers()
-                  resp = json.dumps({
-                      'record': {'name': 'test'},
-                      'metadata': {'id': 'mock-bin-id-create', 'createdAt': '2024-01-01T00:00:00.000Z', 'private': True}
-                  })
-                  self.wfile.write(resp.encode())
-              def log_message(self, format, *args):
-                  pass
-
-          server = http.server.HTTPServer(('0.0.0.0', 8765), Handler)
-          t = threading.Thread(target=server.serve_forever)
-          t.daemon = True
-          t.start()
-          import time; time.sleep(3600)
-          " &
-          sleep 1
-          echo "Mock server started"
-      - id: action
+      - name: Create JSONbin
+        if: steps.check-key.outputs.skip == 'false'
+        id: action
         uses: .
         with:
-          api_key: "fake-api-key-for-testing"
-          method: "CREATE"
-          body: '{"name": "test"}'
-        continue-on-error: true
-      - name: Assert action was invoked
+          api_key: ${{ secrets.JSONBIN_API_KEY }}
+          method: CREATE
+          body: '{"test": "create", "value": 42}'
+
+      - name: Assert bin_id is set
+        if: steps.check-key.outputs.skip == 'false'
+        env:
+          BIN_ID: ${{ steps.action.outputs.bin_id }}
         run: |
-          echo "Action outcome: ${{ steps.action.outcome }}"
-          # The action will fail because the API key is fake and JSONbin will reject it
-          # We verify the action was at least invoked (outcome is either success or failure, not skipped)
-          if [ "${{ steps.action.outcome }}" = "skipped" ]; then
-            echo "FAIL: action was skipped, expected it to run"
+          echo "bin_id: $BIN_ID"
+          if [ -z "$BIN_ID" ]; then
+            echo "FAIL: expected bin_id to be non-empty"
             exit 1
           fi
-          echo "PASS: action was invoked (outcome: ${{ steps.action.outcome }})"
+          echo "PASS: bin_id is set to $BIN_ID"
+
+      - name: Assert url is set
+        if: steps.check-key.outputs.skip == 'false'
+        env:
+          URL: ${{ steps.action.outputs.url }}
+        run: |
+          echo "url: $URL"
+          if [ -z "$URL" ]; then
+            echo "FAIL: expected url to be non-empty"
+            exit 1
+          fi
+          if echo "$URL" | grep -qF "https://api.jsonbin.io/v3/b/"; then
+            echo "PASS: url has expected prefix"
+          else
+            echo "FAIL: url does not contain expected prefix 'https://api.jsonbin.io/v3/b/'"
+            exit 1
+          fi
+
+      - name: Assert url contains bin_id
+        if: steps.check-key.outputs.skip == 'false'
+        env:
+          BIN_ID: ${{ steps.action.outputs.bin_id }}
+          URL: ${{ steps.action.outputs.url }}
+        run: |
+          echo "bin_id: $BIN_ID"
+          echo "url: $URL"
+          EXPECTED_URL="https://api.jsonbin.io/v3/b/${BIN_ID}"
+          if [ "$URL" = "$EXPECTED_URL" ]; then
+            echo "PASS: url matches expected pattern"
+          else
+            echo "FAIL: url '$URL' does not match expected '$EXPECTED_URL'"
+            exit 1
+          fi
+
+      - name: Skip notice
+        if: steps.check-key.outputs.skip == 'true'
+        run: |
+          echo "Test skipped: JSONBIN_API_KEY secret not configured"
+          echo "To run this test, add JSONBIN_API_KEY as a repository secret"

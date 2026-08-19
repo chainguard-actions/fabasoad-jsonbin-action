@@ -1,0 +1,107 @@
+---
+name: Functional Tests
+
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  functional-tests:
+    name: Test JSONbin
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ${{ github.repository }}
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Create bin
+        uses: ./
+        id: jsonbin_create
+        with:
+          body: '{"running_by":"${{ github.actor }}"}'
+          method: "CREATE"
+          api_key: "${{ secrets.API_KEY }}"
+      - name: Validate output
+        env:
+          BIN_ID: ${{ steps.jsonbin_create.outputs.bin_id }}
+          BIN_URL: ${{ steps.jsonbin_create.outputs.url }}
+        run: |
+          [[ $(expr length "$BIN_ID") -eq 0 ]] && exit 1;
+          [[ "$BIN_URL" == "https://api.jsonbin.io/v3/b/$BIN_ID" ]] || exit 1;
+      - name: Call URL that was returned
+        uses: fjogeleit/http-request-action@0bd00a33db6f82063a3c6befd41f232f61d66583 # v1.15.2
+        id: http1
+        with:
+          url: "${{ steps.jsonbin_create.outputs.url }}"
+          method: "GET"
+          customHeaders: '{"X-Master-Key": "${{ secrets.API_KEY }}"}'
+      - name: Validate response
+        env:
+          HTTP1_RESPONSE: ${{ steps.http1.outputs.response }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          [[ "$(jq -c '.record' <<< "$HTTP1_RESPONSE")" == "{\"running_by\":\"$ACTOR\"}" ]] || exit 1;
+      - name: Get bin
+        uses: ./
+        id: jsonbin_get
+        with:
+          bin_id: "${{ steps.jsonbin_create.outputs.bin_id }}"
+          method: "GET"
+          api_key: "${{ secrets.API_KEY }}"
+      - name: Validate output
+        env:
+          BIN_ID: ${{ steps.jsonbin_get.outputs.bin_id }}
+          BIN_URL: ${{ steps.jsonbin_get.outputs.url }}
+        run: |
+          [[ $(expr length "$BIN_ID") -eq 0 ]] && exit 1;
+          [[ "$BIN_URL" == "https://api.jsonbin.io/v3/b/$BIN_ID" ]] || exit 1;
+      - name: Call URL that was returned
+        uses: fjogeleit/http-request-action@0bd00a33db6f82063a3c6befd41f232f61d66583 # v1.15.2
+        id: http2
+        with:
+          url: "${{ steps.jsonbin_get.outputs.url }}"
+          method: "GET"
+          customHeaders: '{"X-Master-Key": "${{ secrets.API_KEY }}"}'
+      - name: Validate response
+        env:
+          HTTP2_RESPONSE: ${{ steps.http2.outputs.response }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          [[ "$(jq -c '.record' <<< "$HTTP2_RESPONSE")" == "{\"running_by\":\"$ACTOR\"}" ]] || exit 1;
+      - name: Update bin
+        uses: ./
+        id: jsonbin_update
+        with:
+          body: '{"author":"${{ github.actor }}"}'
+          method: "UPDATE"
+          bin_id: "${{ steps.jsonbin_create.outputs.bin_id }}"
+          api_key: "${{ secrets.API_KEY }}"
+      - name: Call URL that was returned
+        uses: fjogeleit/http-request-action@0bd00a33db6f82063a3c6befd41f232f61d66583 # v1.15.2
+        id: http3
+        with:
+          url: "${{ steps.jsonbin_update.outputs.url }}"
+          method: "GET"
+          customHeaders: '{"X-Master-Key": "${{ secrets.API_KEY }}"}'
+      - name: Validate response
+        env:
+          HTTP3_RESPONSE: ${{ steps.http3.outputs.response }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          [[ "$(jq -c '.record' <<< "$HTTP3_RESPONSE")" == "{\"author\":\"$ACTOR\"}" ]] || exit 1;
+      - name: Delete bin
+        uses: ./
+        id: jsonbin_delete
+        with:
+          bin_id: "${{ steps.jsonbin_update.outputs.bin_id }}"
+          method: "DELETE"
+          api_key: "${{ secrets.API_KEY }}"
+      - name: Validate URL does not exist
+        env:
+          UPDATE_URL: ${{ steps.jsonbin_update.outputs.url }}
+        run: |
+          [[ $(curl -s -o /dev/null -w "%{http_code}" "$UPDATE_URL") -eq 404 ]] || exit 1;
