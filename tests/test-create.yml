@@ -1,0 +1,73 @@
+---
+name: Test CREATE JSONbin
+on:
+  workflow_dispatch:
+jobs:
+  test-create:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Check API key availability
+        env:
+          API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+        run: |
+          if [ -z "$API_KEY" ]; then
+            echo "SKIP: JSONBIN_API_KEY secret is not set, skipping test"
+            echo "JSONBIN_SKIP=true" >> $GITHUB_ENV
+          else
+            echo "JSONBIN_SKIP=false" >> $GITHUB_ENV
+          fi
+      - name: Create JSONbin
+        if: env.JSONBIN_SKIP == 'false'
+        id: action
+        uses: .
+        with:
+          api_key: ${{ secrets.JSONBIN_API_KEY }}
+          method: CREATE
+          body: '{"test": "hello", "scenario": "create"}'
+      - name: Assert bin_id is set
+        if: env.JSONBIN_SKIP == 'false'
+        env:
+          BIN_ID: ${{ steps.action.outputs.bin_id }}
+        run: |
+          echo "bin_id: $BIN_ID"
+          if [ -z "$BIN_ID" ]; then
+            echo "FAIL: bin_id output is empty"
+            exit 1
+          fi
+          echo "PASS: bin_id is set to $BIN_ID"
+      - name: Assert url is set
+        if: env.JSONBIN_SKIP == 'false'
+        env:
+          URL: ${{ steps.action.outputs.url }}
+        run: |
+          echo "url: $URL"
+          if [ -z "$URL" ]; then
+            echo "FAIL: url output is empty"
+            exit 1
+          fi
+          if echo "$URL" | grep -qF "https://api.jsonbin.io/v3/b/"; then
+            echo "PASS: url contains expected prefix"
+          else
+            echo "FAIL: url does not contain expected prefix"
+            exit 1
+          fi
+      - name: Assert url contains bin_id
+        if: env.JSONBIN_SKIP == 'false'
+        env:
+          BIN_ID: ${{ steps.action.outputs.bin_id }}
+          URL: ${{ steps.action.outputs.url }}
+        run: |
+          echo "bin_id: $BIN_ID"
+          echo "url: $URL"
+          if echo "$URL" | grep -qF "$BIN_ID"; then
+            echo "PASS: url contains bin_id"
+          else
+            echo "FAIL: url does not contain bin_id"
+            exit 1
+          fi
+      - name: Skip notice
+        if: env.JSONBIN_SKIP == 'true'
+        run: |
+          echo "Test skipped: JSONBIN_API_KEY secret not configured"
+          echo "PASS: test skipped gracefully"
