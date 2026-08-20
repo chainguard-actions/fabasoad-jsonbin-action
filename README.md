@@ -8,8 +8,8 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 
 | Version | Tag | Upstream commit |
 |---------|-----|-----------------|
-| v2 | [`v2`](https://github.com/chainguard-actions/fabasoad-jsonbin-action/tree/v2) | [`ce923a8`](https://github.com/fabasoad/jsonbin-action/commit/ce923a87d974a2434c38297c5bb3eb2e8236cf0c) |
-| v2.0 | [`v2.0`](https://github.com/chainguard-actions/fabasoad-jsonbin-action/tree/v2.0) | [`ce923a8`](https://github.com/fabasoad/jsonbin-action/commit/ce923a87d974a2434c38297c5bb3eb2e8236cf0c) |
+| v2 | [`v2`](https://github.com/chainguard-actions/fabasoad-jsonbin-action/tree/v2) | [`bd3792b`](https://github.com/fabasoad/jsonbin-action/commit/bd3792bc8c24b25aa12834e51edf3d11f9f97a6c) |
+| v2.0 | [`v2.0`](https://github.com/chainguard-actions/fabasoad-jsonbin-action/tree/v2.0) | [`bd3792b`](https://github.com/fabasoad/jsonbin-action/commit/bd3792bc8c24b25aa12834e51edf3d11f9f97a6c) |
 | v2.0.3 | [`v2.0.3`](https://github.com/chainguard-actions/fabasoad-jsonbin-action/tree/v2.0.3) | [`ce923a8`](https://github.com/fabasoad/jsonbin-action/commit/ce923a87d974a2434c38297c5bb3eb2e8236cf0c) |
 | v2.0.4 | [`v2.0.4`](https://github.com/chainguard-actions/fabasoad-jsonbin-action/tree/v2.0.4) | [`7585e70`](https://github.com/fabasoad/jsonbin-action/commit/7585e7051ce52bcb2c39fe3cde46e5b7da9ca973) |
 | v2.0.5 | [`v2.0.5`](https://github.com/chainguard-actions/fabasoad-jsonbin-action/tree/v2.0.5) | [`bd3792b`](https://github.com/fabasoad/jsonbin-action/commit/bd3792bc8c24b25aa12834e51edf3d11f9f97a6c) |
