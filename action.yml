@@ -50,22 +50,22 @@ runs:
     - name: Get JSONbin
       if: ${{ inputs.method == 'GET' }}
       id: get
-      uses: fjogeleit/http-request-action@eab8015483ccea148feff7b1c65f320805ddc2bf # v1.14.1
+      uses: chainguard-actions/fjogeleit-http-request-action@d69d5e08a8a0ea7970e40b67ffa4e655a7b5c623 # v1.14.1
       with:
         url: "https://api.jsonbin.io/v3/b/${{ inputs.bin_id }}"
         method: "GET"
         customHeaders: '{"X-Master-Key": "${{ inputs.api_key }}", "Accept": "application/json", "X-Bin-Meta": "true"}'
     - if: ${{ inputs.method == 'GET' }}
       env:
-        RESPONSE_BIN_ID: ${{ fromJson(steps.get.outputs.response).metadata.id }}
+        GET_RESPONSE: ${{ fromJson(steps.get.outputs.response).metadata.id }}
       run: |
-        safe=$(printf '%s' "$RESPONSE_BIN_ID" | tr -d '\n\r')
-        echo "JSONBIN_ACTION_BIN_ID=$safe" >> $GITHUB_ENV
+        bin_id="$(printf '%s' "$GET_RESPONSE" | tr -d '\n\r')"
+        echo "JSONBIN_ACTION_BIN_ID=$bin_id" >> $GITHUB_ENV
       shell: sh
     - name: Create JSONbin
       if: ${{ inputs.method == 'CREATE' }}
       id: create
-      uses: fjogeleit/http-request-action@eab8015483ccea148feff7b1c65f320805ddc2bf # v1.14.1
+      uses: chainguard-actions/fjogeleit-http-request-action@d69d5e08a8a0ea7970e40b67ffa4e655a7b5c623 # v1.14.1
       with:
         url: "https://api.jsonbin.io/v3/b"
         method: "POST"
@@ -73,15 +73,15 @@ runs:
         data: "${{ inputs.body }}"
     - if: ${{ inputs.method == 'CREATE' }}
       env:
-        RESPONSE_BIN_ID: ${{ fromJson(steps.create.outputs.response).metadata.id }}
+        CREATE_RESPONSE: ${{ fromJson(steps.create.outputs.response).metadata.id }}
       run: |
-        safe=$(printf '%s' "$RESPONSE_BIN_ID" | tr -d '\n\r')
-        echo "JSONBIN_ACTION_BIN_ID=$safe" >> $GITHUB_ENV
+        bin_id="$(printf '%s' "$CREATE_RESPONSE" | tr -d '\n\r')"
+        echo "JSONBIN_ACTION_BIN_ID=$bin_id" >> $GITHUB_ENV
       shell: sh
     - name: Update JSONbin
       if: ${{ inputs.method == 'UPDATE' }}
       id: update
-      uses: fjogeleit/http-request-action@eab8015483ccea148feff7b1c65f320805ddc2bf # v1.14.1
+      uses: chainguard-actions/fjogeleit-http-request-action@d69d5e08a8a0ea7970e40b67ffa4e655a7b5c623 # v1.14.1
       with:
         url: "https://api.jsonbin.io/v3/b/${{ inputs.bin_id }}"
         method: "PUT"
@@ -89,30 +89,31 @@ runs:
         data: "${{ inputs.body }}"
     - if: ${{ inputs.method == 'UPDATE' }}
       env:
-        RESPONSE_BIN_ID: ${{ fromJson(steps.update.outputs.response).metadata.parentId }}
+        UPDATE_RESPONSE: ${{ fromJson(steps.update.outputs.response).metadata.parentId }}
       run: |
-        safe=$(printf '%s' "$RESPONSE_BIN_ID" | tr -d '\n\r')
-        echo "JSONBIN_ACTION_BIN_ID=$safe" >> $GITHUB_ENV
+        bin_id="$(printf '%s' "$UPDATE_RESPONSE" | tr -d '\n\r')"
+        echo "JSONBIN_ACTION_BIN_ID=$bin_id" >> $GITHUB_ENV
       shell: sh
     - name: Delete JSONbin
       if: ${{ inputs.method == 'DELETE' }}
       id: delete
-      uses: fjogeleit/http-request-action@eab8015483ccea148feff7b1c65f320805ddc2bf # v1.14.1
+      uses: chainguard-actions/fjogeleit-http-request-action@d69d5e08a8a0ea7970e40b67ffa4e655a7b5c623 # v1.14.1
       with:
         url: "https://api.jsonbin.io/v3/b/${{ inputs.bin_id }}"
         method: "DELETE"
         customHeaders: '{"X-Master-Key": "${{ inputs.api_key }}"}'
     - if: ${{ inputs.method == 'DELETE' }}
       env:
-        RESPONSE_BIN_ID: ${{ fromJson(steps.delete.outputs.response).metadata.id }}
+        DELETE_RESPONSE: ${{ fromJson(steps.delete.outputs.response).metadata.id }}
       run: |
-        safe=$(printf '%s' "$RESPONSE_BIN_ID" | tr -d '\n\r')
-        echo "JSONBIN_ACTION_BIN_ID=$safe" >> $GITHUB_ENV
+        bin_id="$(printf '%s' "$DELETE_RESPONSE" | tr -d '\n\r')"
+        echo "JSONBIN_ACTION_BIN_ID=$bin_id" >> $GITHUB_ENV
       shell: sh
     - name: Set output
       if: ${{ inputs.method == 'GET' || inputs.method == 'CREATE' || inputs.method == 'UPDATE' || inputs.method == 'DELETE' }}
       id: jsonbin
       run: |
-        echo "bin_id=$JSONBIN_ACTION_BIN_ID" >> $GITHUB_OUTPUT
-        echo "url=https://api.jsonbin.io/v3/b/$JSONBIN_ACTION_BIN_ID" >> $GITHUB_OUTPUT
+        safe_bin_id="$(printf '%s' "$JSONBIN_ACTION_BIN_ID" | tr -d '\n\r')"
+        echo "bin_id=$safe_bin_id" >> $GITHUB_OUTPUT
+        echo "url=https://api.jsonbin.io/v3/b/$safe_bin_id" >> $GITHUB_OUTPUT
       shell: sh
