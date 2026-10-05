@@ -10,125 +10,66 @@
 
 **Harden Agent Version:** `2`
 
-Action **fabasoad--jsonbin-action/v2.0.5** was hardened automatically. 6 finding(s) were identified and resolved across 1 iteration(s).
+Action **fabasoad--jsonbin-action/v2.0.5** was hardened automatically. 3 finding(s) were identified and resolved across 1 iteration(s).
 
 ## Findings Fixed
 
 ### script-injection (severity: high)
 
-Sub-rule (a): Four run: blocks in action.yml directly interpolate ${{ fromJson(steps.*.outputs.response).metadata.* }} expressions inside shell command strings. Step-output values are workflow-controllable and flow through YAML template substitution before the shell sees them, enabling command injection. Offending lines include:
-  bin_id="${{ fromJson(steps.get.outputs.response).metadata.id }}"
-  bin_id="${{ fromJson(steps.create.outputs.response).metadata.id }}"
-  bin_id="${{ fromJson(steps.update.outputs.response).metadata.parentId }}"
-  bin_id="${{ fromJson(steps.delete.outputs.response).metadata.id }}"
+Four `run:` blocks in action.yml directly interpolate `${{ fromJson(steps.*.outputs.response).metadata.* }}` expressions inside shell commands (rule a). `steps.*.outputs.*` is a workflow-controllable context, and any `${{ ... }}` inside a `run:` block is a script injection risk — the value is substituted by the Actions runner before the shell ever sees it, allowing an attacker-controlled API response to inject arbitrary shell commands. Offending lines:
+- Line 40: `bin_id="${{ fromJson(steps.get.outputs.response).metadata.id }}"`
+- Line 53: `bin_id="${{ fromJson(steps.create.outputs.response).metadata.id }}"`
+- Line 66: `bin_id="${{ fromJson(steps.update.outputs.response).metadata.parentId }}"`
+- Line 77: `bin_id="${{ fromJson(steps.delete.outputs.response).metadata.id }}"`
 
 Locations:
 
-- `action.yml:36`
-- `action.yml:52`
-- `action.yml:68`
-- `action.yml:84`
+- `action.yml:40`
+- `action.yml:53`
+- `action.yml:66`
+- `action.yml:77`
 
 ### github-env-injection (severity: high)
 
-Four run: blocks in action.yml write values derived from ${{ fromJson(steps.*.outputs.response).metadata.* }} (step outputs — workflow-controllable) directly to $GITHUB_ENV without the required sanitization step (printf '%s' ... | tr -d '\n\r'). This allows an attacker to inject arbitrary environment variables or override existing ones by embedding newlines in the API response. Offending pattern in each block:
-  bin_id="${{ fromJson(steps.*.outputs.response).metadata.* }}"
-  echo "JSONBIN_ACTION_BIN_ID=${bin_id}" >> "$GITHUB_ENV"
+Four `run:` blocks write a value derived from `steps.*.outputs.*` (an untrusted, workflow-controllable source) to `$GITHUB_ENV` without the required sanitization step (`printf '%s' ... | tr -d '\n\r'`). In each block, `${{ fromJson(steps.*.outputs.response).metadata.* }}` is assigned to the shell variable `bin_id`, which is then written directly to `$GITHUB_ENV`. A newline character in the API response value could allow an attacker to inject arbitrary environment variable definitions into subsequent steps. Offending writes:
+- Line 41: `echo "JSONBIN_ACTION_BIN_ID=${bin_id}" >> "$GITHUB_ENV"` (GET block)
+- Line 54: `echo "JSONBIN_ACTION_BIN_ID=${bin_id}" >> "$GITHUB_ENV"` (CREATE block)
+- Line 67: `echo "JSONBIN_ACTION_BIN_ID=${bin_id}" >> "$GITHUB_ENV"` (UPDATE block)
+- Line 78: `echo "JSONBIN_ACTION_BIN_ID=${bin_id}" >> "$GITHUB_ENV"` (DELETE block)
 
 Locations:
 
-- `action.yml:37`
-- `action.yml:53`
-- `action.yml:69`
-- `action.yml:85`
-
-### script-injection (severity: high)
-
-Sub-rule (a): Multiple run: blocks in functional-tests.yml directly interpolate ${{ steps.*.outputs.* }} and ${{ github.actor }} expressions inside shell command strings. These values flow through YAML template substitution before the shell processes them, enabling command injection. Offending lines include:
-  [[ $(expr length "${{ steps.jsonbin_create.outputs.bin_id }}") -eq 0 ]]
-  [[ "${{ steps.jsonbin_create.outputs.url }}" == ... ]]
-  [[ "$(jq -c '.record' <<< '${{ steps.http1.outputs.response }}')" == '{"running_by":"${{ github.actor }}"}' ]]
-  [[ $(curl -s -o /dev/null -w "%{http_code}" ${{ steps.jsonbin_update.outputs.url }}) -eq 404 ]]
-
-Locations:
-
-- `.github/workflows/functional-tests.yml:26`
-- `.github/workflows/functional-tests.yml:38`
-- `.github/workflows/functional-tests.yml:50`
-- `.github/workflows/functional-tests.yml:62`
-- `.github/workflows/functional-tests.yml:74`
-- `.github/workflows/functional-tests.yml:86`
+- `action.yml:41`
+- `action.yml:54`
+- `action.yml:67`
+- `action.yml:78`
 
 ### unpinned-uses (severity: high)
 
-action.yml references fjogeleit/http-request-action@v1.15.2 four times using a version tag instead of a full 40-character commit SHA. A tag can be moved to point to a different (potentially malicious) commit, enabling supply-chain attacks.
+All four `uses:` references in action.yml pin to a mutable version tag (`@v1.15.2`) rather than an immutable 40-character SHA commit hash. If the tag is moved (intentionally or via a supply-chain compromise), the action will silently execute different code. Failing references:
+- Line 35: `uses: fjogeleit/http-request-action@v1.15.2`
+- Line 46: `uses: fjogeleit/http-request-action@v1.15.2`
+- Line 59: `uses: fjogeleit/http-request-action@v1.15.2`
+- Line 72: `uses: fjogeleit/http-request-action@v1.15.2`
+Fix: pin each to the full SHA, e.g. `uses: fjogeleit/http-request-action@<40-char-sha> # v1.15.2`.
 
 Locations:
 
-- `action.yml:29`
-- `action.yml:45`
-- `action.yml:61`
-- `action.yml:77`
-
-### unpinned-uses (severity: high)
-
-All uses: references across workflow files use mutable tags or branch names instead of pinned 40-character commit SHAs. Affected references include: actions/checkout@v4, fjogeleit/http-request-action@v1.15.2, fabasoad/reusable-workflows/...@main, simbo/changes-since-last-release-action@v1, softprops/action-gh-release@v2, fischerscode/tagger@v0, github/codeql-action/init@v3, github/codeql-action/analyze@v3, github/codeql-action/upload-sarif@v3, anchore/scan-action@v3, micnncim/action-label-syncer@v1, FantasticFiasco/action-update-license-year@v3.
-
-Locations:
-
-- `.github/workflows/functional-tests.yml:17`
-- `.github/workflows/functional-tests.yml:31`
-- `.github/workflows/functional-tests.yml:43`
-- `.github/workflows/functional-tests.yml:55`
-- `.github/workflows/linting.yml:12`
-- `.github/workflows/release.yml:14`
-- `.github/workflows/release.yml:19`
-- `.github/workflows/release.yml:22`
-- `.github/workflows/release.yml:28`
-- `.github/workflows/security.yml:17`
-- `.github/workflows/security.yml:19`
-- `.github/workflows/security.yml:22`
-- `.github/workflows/security.yml:26`
-- `.github/workflows/security.yml:33`
-- `.github/workflows/security.yml:36`
-- `.github/workflows/security.yml:40`
-- `.github/workflows/sync-labels.yml:17`
-- `.github/workflows/sync-labels.yml:20`
-- `.github/workflows/update-license.yml:12`
-- `.github/workflows/update-license.yml:15`
-
-### missing-permissions (severity: medium)
-
-None of the workflow files define a top-level permissions: key, and no job within any workflow defines a job-level permissions: key. Without explicit permissions, workflows run with the default (potentially write-all) token permissions, violating the principle of least privilege.
-
-Locations:
-
-- `.github/workflows/functional-tests.yml:1`
-- `.github/workflows/linting.yml:1`
-- `.github/workflows/release.yml:1`
-- `.github/workflows/security.yml:1`
-- `.github/workflows/sync-labels.yml:1`
-- `.github/workflows/update-license.yml:1`
+- `action.yml:35`
+- `action.yml:46`
+- `action.yml:59`
+- `action.yml:72`
 
 ## Iteration Notes
 
 ### Iteration 1
 
-**Fixes applied:** script-injection, github-env-injection, unpinned-uses, missing-permissions
+**Fixes applied:** script-injection, github-env-injection, unpinned-uses
 
 **Notes:**
 
-Fixed all findings across action.yml and all 6 workflow files:
-
-1. script-injection (action.yml): Moved all ${{ fromJson(steps.*.outputs.response).metadata.* }} expressions into env: blocks (BIN_ID_RAW) and referenced as $BIN_ID_RAW in shell scripts.
-
-2. github-env-injection (action.yml): Added sanitization with `printf '%s' "$BIN_ID_RAW" | tr -d '\n\r'` before writing to $GITHUB_ENV in all 4 affected blocks.
-
-3. script-injection (functional-tests.yml): Moved all ${{ steps.*.outputs.* }} and ${{ github.actor }} expressions into env: blocks and referenced as plain env vars in shell scripts.
-
-4. unpinned-uses (action.yml): Pinned fjogeleit/http-request-action@v1.15.2 to SHA 0bd00a33db6f82063a3c6befd41f232f61d66583 in all 4 occurrences.
-
-5. unpinned-uses (workflow files): Pinned all 12 action references across all workflow files to their full 40-character commit SHAs with tag comments for readability.
-
-6. missing-permissions: Added top-level permissions blocks to all 6 workflow files with minimal required permissions (contents:read for most, plus security-events:write for security.yml, issues:write for sync-labels.yml, contents:write and pull-requests:write for update-license.yml, contents:write for release.yml).
+Fixed all three findings in hardened/action/action.yml:
+1. unpinned-uses: Pinned all four `fjogeleit/http-request-action@v1.15.2` references to SHA `0bd00a33db6f82063a3c6befd41f232f61d66583` with the tag preserved as a comment.
+2. script-injection: Moved all four `${{ fromJson(steps.*.outputs.response).metadata.* }}` expressions out of `run:` shell strings and into `env:` blocks as `BIN_ID_RAW`, referenced via `$BIN_ID_RAW` in the shell.
+3. github-env-injection: Added `printf '%s' "$BIN_ID_RAW" | tr -d '\n\r'` sanitization in all four blocks before writing to `$GITHUB_ENV`, preventing newline injection.
 
